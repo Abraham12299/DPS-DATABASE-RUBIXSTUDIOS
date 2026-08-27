@@ -63,9 +63,10 @@ function initializeApp() {
     
     // Show/hide admin features
     const isAdmin = currentUser.role === 'admin';
-    document.querySelectorAll('.admin-only').forEach(el => {
-        el.style.display = isAdmin ? 'flex' : 'none';
-    });
+    const adminButton = document.querySelector('[data-view="adminPanel"]');
+    if (adminButton) {
+        adminButton.style.display = isAdmin ? 'flex' : 'none';
+    }
     
     // Set minimum booking date (tomorrow)
     const tomorrow = new Date();
@@ -88,10 +89,6 @@ function initializeApp() {
     loadAnnouncements();
     loadMatches();
     loadMessages();
-    
-    if (isAdmin) {
-        loadAdminData();
-    }
 }
 
 // Navigation function
@@ -122,7 +119,16 @@ function navigateTo(viewName) {
     if (viewName === 'announcements') loadAnnouncements();
     if (viewName === 'matches') loadMatches();
     if (viewName === 'messages') loadMessages();
-    if (viewName === 'adminPanel' && currentUser.role === 'admin') loadAdminData();
+}
+
+// Admin Panel Functions
+function openAdminPanel() {
+    document.getElementById('adminModal').style.display = 'flex';
+    loadAdminData();
+}
+
+function closeAdminPanel() {
+    document.getElementById('adminModal').style.display = 'none';
 }
 
 // Load attendance
@@ -141,7 +147,7 @@ function loadAttendance() {
             0
         ).getDate();
         
-        const sessions = new Array(daysInMonth).fill(false);
+        const sessions = new Array(daysInMonth).fill(null);
         attendance[key] = { sessions: sessions };
         DB.set('dps_attendance', attendance);
         
@@ -159,20 +165,30 @@ function renderAttendanceGrid(sessions) {
     const currentDay = today.getDate();
     const isCurrentMonth = currentMonth === today.toISOString().slice(0, 7);
     
-    sessions.forEach((attended, index) => {
+    sessions.forEach((status, index) => {
         const day = index + 1;
         const circle = document.createElement('div');
         circle.className = 'attendance-circle';
         
-        if (attended) {
-            circle.classList.add('attended');
+        if (status === true) {
+            circle.classList.add('present');
             circle.textContent = day;
+            circle.title = `Day ${day} - Present`;
+        } else if (status === false) {
+            circle.classList.add('absent');
+            circle.textContent = day;
+            circle.title = `Day ${day} - Absent`;
         } else {
-            circle.classList.add('missed');
+            if (isCurrentMonth && day > currentDay) {
+                circle.classList.add('upcoming');
+                circle.title = `Day ${day} - Upcoming`;
+            } else {
+                circle.classList.add('absent');
+                circle.title = `Day ${day} - No booking`;
+            }
             circle.textContent = day;
         }
         
-        circle.title = `Day ${day}${attended ? ' - Attended' : ' - Not Attended'}`;
         grid.appendChild(circle);
     });
 }
@@ -197,8 +213,9 @@ function copyAttendance() {
     
     if (monthData) {
         const sessions = monthData.sessions;
-        const attended = sessions.filter(s => s).length;
-        const text = `Attendance Report - ${currentMonth}\nUser: ${currentUser.name}\nAttended: ${attended}/${sessions.length} sessions`;
+        const present = sessions.filter(s => s === true).length;
+        const absent = sessions.filter(s => s === false).length;
+        const text = `Attendance Report - ${currentMonth}\nUser: ${currentUser.name}\nPresent: ${present} days\nAbsent: ${absent} days`;
         
         navigator.clipboard.writeText(text).then(() => {
             alert('Attendance copied to clipboard!');
@@ -221,15 +238,17 @@ function loadUpcomingSessions() {
     const list = document.getElementById('upcomingSessionsList');
     
     if (upcoming.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No upcoming sessions</p>';
+        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No upcoming sessions</p>';
         return;
     }
     
     list.innerHTML = upcoming.map(booking => `
         <div class="booking-card">
+            <div class="booking-header">
+                <span class="badge badge-booked">Booked</span>
+                <small>${booking.date}</small>
+            </div>
             <p><strong>${booking.programType}</strong></p>
-            <p>Date: ${booking.date}</p>
-            <span class="badge badge-booked">Booked</span>
         </div>
     `).join('');
 }
@@ -242,7 +261,7 @@ function loadDashboardAnnouncements() {
     const list = document.getElementById('dashboardAnnouncements');
     
     if (sorted.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No announcements</p>';
+        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No announcements</p>';
         return;
     }
     
@@ -263,7 +282,7 @@ function loadAnnouncements() {
     const list = document.getElementById('announcementsList');
     
     if (sorted.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No announcements</p>';
+        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No announcements</p>';
         return;
     }
     
@@ -289,7 +308,7 @@ function loadBookings() {
     const list = document.getElementById('bookingsList');
     
     if (userBookings.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No bookings found</p>';
+        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No bookings found</p>';
         return;
     }
     
@@ -355,7 +374,7 @@ function loadMatches() {
     const list = document.getElementById('matchesList');
     
     if (filtered.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No matches found</p>';
+        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No matches found</p>';
         return;
     }
     
@@ -401,7 +420,7 @@ function loadMessages() {
     const chatMessages = document.getElementById('chatMessages');
     
     if (messages.length === 0) {
-        chatMessages.innerHTML = '<p style="text-align: center; color: #A0A0A0;">No messages yet. Start the conversation!</p>';
+        chatMessages.innerHTML = '<p style="text-align: center; color: #A0A0A0; padding: 20px;">No messages yet. Start the conversation!</p>';
         return;
     }
     
@@ -484,7 +503,7 @@ function confirmBooking() {
     loadUpcomingSessions();
 }
 
-// Admin functions
+// Admin Functions
 function switchAdminTab(tabName, element) {
     document.querySelectorAll('.admin-tab').forEach(tab => {
         tab.classList.remove('active');
@@ -592,21 +611,33 @@ function loadAdminAttendance() {
         
         if (monthData) {
             const sessions = monthData.sessions;
-            const attended = sessions.filter(s => s).length;
+            const present = sessions.filter(s => s === true).length;
+            const absent = sessions.filter(s => s === false).length;
             
             return `
                 <div class="card">
                     <h4>${user.name}</h4>
-                    <p>Attended: ${attended}/${sessions.length} sessions</p>
+                    <p>Present: ${present} | Absent: ${absent}</p>
                     <div class="attendance-grid" style="margin-top: 10px;">
-                        ${sessions.map((attended, index) => `
-                            <div class="attendance-circle ${attended ? 'attended' : 'missed'}" 
-                                 style="cursor: pointer;"
-                                 onclick="toggleAttendance('${user.id}', ${index}, ${attended})"
-                                 title="Day ${index + 1}">
-                                ${index + 1}
-                            </div>
-                        `).join('')}
+                        ${sessions.map((status, index) => {
+                            let className = 'absent';
+                            let label = 'Absent';
+                            if (status === true) {
+                                className = 'present';
+                                label = 'Present';
+                            } else if (status === null) {
+                                className = 'upcoming';
+                                label = 'Not set';
+                            }
+                            return `
+                                <div class="attendance-circle ${className}" 
+                                     style="cursor: pointer;"
+                                     onclick="toggleAttendance('${user.id}', ${index}, '${status}')"
+                                     title="Day ${index + 1} - ${label} (Click to toggle)">
+                                    ${index + 1}
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             `;
@@ -621,13 +652,20 @@ function loadAdminAttendance() {
     }).join('');
 }
 
-function toggleAttendance(userId, dayIndex, currentValue) {
+function toggleAttendance(userId, dayIndex, currentStatus) {
     const attendance = DB.get('dps_attendance');
     const selectedMonth = document.getElementById('adminAttendanceMonth').value;
     const key = `${userId}_${selectedMonth}`;
     
     if (attendance[key]) {
-        attendance[key].sessions[dayIndex] = !currentValue;
+        // Toggle between present (true), absent (false), and null
+        if (currentStatus === 'true') {
+            attendance[key].sessions[dayIndex] = false;
+        } else if (currentStatus === 'false') {
+            attendance[key].sessions[dayIndex] = null;
+        } else {
+            attendance[key].sessions[dayIndex] = true;
+        }
         DB.set('dps_attendance', attendance);
         loadAdminAttendance();
     }
@@ -646,8 +684,9 @@ function copyAdminAttendance() {
         
         if (monthData) {
             const sessions = monthData.sessions;
-            const attended = sessions.filter(s => s).length;
-            text += `${user.name}: ${attended}/${sessions.length} sessions\n`;
+            const present = sessions.filter(s => s === true).length;
+            const absent = sessions.filter(s => s === false).length;
+            text += `${user.name}: Present ${present}, Absent ${absent}\n`;
         }
     });
     
@@ -737,9 +776,9 @@ function loadUsers() {
                 <tbody>
                     ${users.map(user => `
                         <tr>
-                            <td>${user.name}</td>
+                            <td><strong>${user.name}</strong></td>
                             <td>${user.email}</td>
-                            <td>${user.role}</td>
+                            <td><span class="badge ${user.role === 'Admin' ? 'badge-attended' : 'badge-booked'}">${user.role}</span></td>
                             <td>${user.gender}</td>
                             <td>${user.weeklySessions}</td>
                             <td>${user.points}</td>
