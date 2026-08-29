@@ -12,12 +12,16 @@ const DB = {
 let currentUser = null;
 let currentMonth = new Date().toISOString().slice(0, 7);
 
+// Coach ID (for messaging)
+const COACH_ID = 'admin1';
+const COACH_NAME = 'Abraham';
+
 // Login function
 function loginAs(role) {
     if (role === 'admin') {
         currentUser = {
             id: 'admin1',
-            name: 'Abraham',
+            name: COACH_NAME,
             role: 'admin',
             weeklySessions: 0,
             points: 0,
@@ -34,14 +38,11 @@ function loginAs(role) {
         };
     }
     
-    // Save to localStorage
     localStorage.setItem('dps_current_user', JSON.stringify(currentUser));
     
-    // Show main app
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'flex';
     
-    // Initialize the app
     initializeApp();
 }
 
@@ -81,35 +82,27 @@ function initializeApp() {
     document.getElementById('adminAttendanceMonth').value = currentMonth;
     document.getElementById('dailyMatchesMonth').value = currentMonth;
     
-    // Load initial data
+    // Load data
     loadAttendance();
     loadUpcomingSessions();
     loadDashboardAnnouncements();
     loadBookings();
     loadAnnouncements();
     loadMatches();
-    loadMessages();
+    loadMessages(); // One-on-one chat
 }
 
-// Navigation function
+// Navigation
 function navigateTo(viewName) {
-    document.querySelectorAll('.view').forEach(view => {
-        view.classList.remove('active');
-    });
-    
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
     const targetView = document.getElementById(viewName);
-    if (targetView) {
-        targetView.classList.add('active');
-    }
+    if (targetView) targetView.classList.add('active');
     
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
-        if (item.dataset.view === viewName) {
-            item.classList.add('active');
-        }
+        if (item.dataset.view === viewName) item.classList.add('active');
     });
     
-    // Load view-specific data
     if (viewName === 'dashboard') {
         loadAttendance();
         loadUpcomingSessions();
@@ -121,7 +114,7 @@ function navigateTo(viewName) {
     if (viewName === 'messages') loadMessages();
 }
 
-// Admin Panel Functions
+// Admin Panel Modal
 function openAdminPanel() {
     document.getElementById('adminModal').style.display = 'flex';
     loadAdminData();
@@ -131,26 +124,21 @@ function closeAdminPanel() {
     document.getElementById('adminModal').style.display = 'none';
 }
 
-// Load attendance
+// Attendance
 function loadAttendance() {
     const attendance = DB.get('dps_attendance');
     const key = `${currentUser.id}_${currentMonth}`;
     const monthData = attendance[key];
     
-    const grid = document.getElementById('attendanceGrid');
-    
     if (!monthData) {
-        // Initialize empty attendance for the month
         const daysInMonth = new Date(
             parseInt(currentMonth.slice(0, 4)),
             parseInt(currentMonth.slice(5, 7)),
             0
         ).getDate();
-        
         const sessions = new Array(daysInMonth).fill(null);
         attendance[key] = { sessions: sessions };
         DB.set('dps_attendance', attendance);
-        
         renderAttendanceGrid(sessions);
     } else {
         renderAttendanceGrid(monthData.sessions);
@@ -172,11 +160,9 @@ function renderAttendanceGrid(sessions) {
         
         if (status === true) {
             circle.classList.add('present');
-            circle.textContent = day;
             circle.title = `Day ${day} - Present`;
         } else if (status === false) {
             circle.classList.add('absent');
-            circle.textContent = day;
             circle.title = `Day ${day} - Absent`;
         } else {
             if (isCurrentMonth && day > currentDay) {
@@ -186,9 +172,8 @@ function renderAttendanceGrid(sessions) {
                 circle.classList.add('absent');
                 circle.title = `Day ${day} - No booking`;
             }
-            circle.textContent = day;
         }
-        
+        circle.textContent = day;
         grid.appendChild(circle);
     });
 }
@@ -210,133 +195,113 @@ function copyAttendance() {
     const attendance = DB.get('dps_attendance');
     const key = `${currentUser.id}_${currentMonth}`;
     const monthData = attendance[key];
-    
     if (monthData) {
         const sessions = monthData.sessions;
         const present = sessions.filter(s => s === true).length;
         const absent = sessions.filter(s => s === false).length;
         const text = `Attendance Report - ${currentMonth}\nUser: ${currentUser.name}\nPresent: ${present} days\nAbsent: ${absent} days`;
-        
-        navigator.clipboard.writeText(text).then(() => {
-            alert('Attendance copied to clipboard!');
-        });
+        navigator.clipboard.writeText(text).then(() => alert('Attendance copied!'));
     } else {
-        alert('No attendance data for this month');
+        alert('No attendance data');
     }
 }
 
-// Load upcoming sessions
+// Upcoming Sessions
 function loadUpcomingSessions() {
     const bookings = DB.get('dps_bookings');
     const today = new Date().toISOString().split('T')[0];
-    
     const upcoming = bookings
         .filter(b => b.userId === currentUser.id && b.status === 'booked' && b.date >= today)
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 5);
     
     const list = document.getElementById('upcomingSessionsList');
-    
     if (upcoming.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No upcoming sessions</p>';
+        list.innerHTML = '<p style="color: #A0A0A0; text-align:center; padding:20px;">No upcoming sessions</p>';
         return;
     }
-    
-    list.innerHTML = upcoming.map(booking => `
+    list.innerHTML = upcoming.map(b => `
         <div class="booking-card">
             <div class="booking-header">
                 <span class="badge badge-booked">Booked</span>
-                <small>${booking.date}</small>
+                <small>${b.date} ${b.time || ''}</small>
             </div>
-            <p><strong>${booking.programType}</strong></p>
+            <p><strong>${b.programType}</strong></p>
         </div>
     `).join('');
 }
 
-// Load dashboard announcements
+// Dashboard Announcements
 function loadDashboardAnnouncements() {
     const announcements = DB.get('dps_announcements');
     const sorted = announcements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3);
-    
     const list = document.getElementById('dashboardAnnouncements');
-    
     if (sorted.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No announcements</p>';
+        list.innerHTML = '<p style="color:#A0A0A0; text-align:center; padding:20px;">No announcements</p>';
         return;
     }
-    
-    list.innerHTML = sorted.map(announcement => `
+    list.innerHTML = sorted.map(a => `
         <div class="announcement-card">
-            <h4>${announcement.title}</h4>
-            <p>${announcement.body}</p>
-            <small style="color: #A0A0A0;">${new Date(announcement.createdAt).toLocaleDateString()}</small>
+            <h4>${a.title}</h4>
+            <p>${a.body}</p>
+            <small style="color:#A0A0A0;">${new Date(a.createdAt).toLocaleDateString()}</small>
         </div>
     `).join('');
 }
 
-// Load all announcements
+// All Announcements
 function loadAnnouncements() {
     const announcements = DB.get('dps_announcements');
     const sorted = announcements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
     const list = document.getElementById('announcementsList');
-    
     if (sorted.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No announcements</p>';
+        list.innerHTML = '<p style="color:#A0A0A0; text-align:center; padding:20px;">No announcements</p>';
         return;
     }
-    
-    list.innerHTML = sorted.map(announcement => `
+    list.innerHTML = sorted.map(a => `
         <div class="announcement-card">
-            <h3>${announcement.title}</h3>
-            <p>${announcement.body}</p>
-            <small style="color: #A0A0A0;">${new Date(announcement.createdAt).toLocaleDateString()}</small>
+            <h3>${a.title}</h3>
+            <p>${a.body}</p>
+            <small style="color:#A0A0A0;">${new Date(a.createdAt).toLocaleDateString()}</small>
         </div>
     `).join('');
 }
 
-// Load bookings
+// Bookings
 function loadBookings() {
     const bookings = DB.get('dps_bookings');
     const selectedMonth = document.getElementById('bookingsMonthFilter').value;
-    
     const userBookings = bookings
         .filter(b => b.userId === currentUser.id)
         .filter(b => !selectedMonth || b.date.startsWith(selectedMonth))
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
     const list = document.getElementById('bookingsList');
-    
     if (userBookings.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No bookings found</p>';
+        list.innerHTML = '<p style="color:#A0A0A0; text-align:center; padding:20px;">No bookings found</p>';
         return;
     }
-    
-    list.innerHTML = userBookings.map(booking => {
+    list.innerHTML = userBookings.map(b => {
         const statusClass = {
             'booked': 'badge-booked',
             'attended': 'badge-attended',
             'cancelled': 'badge-cancelled'
-        }[booking.status] || 'badge-booked';
-        
+        }[b.status] || 'badge-booked';
         return `
             <div class="booking-card">
                 <div class="booking-header">
-                    <span class="badge ${statusClass}">${booking.status}</span>
-                    <small>${booking.date}</small>
+                    <span class="badge ${statusClass}">${b.status}</span>
+                    <small>${b.date} ${b.time || ''}</small>
                 </div>
-                <p><strong>${booking.programType}</strong></p>
-                <p>${booking.groupSession ? 'Group Session' : 'Private Session'}</p>
-                ${booking.status === 'booked' ? 
-                    `<button class="btn-danger" onclick="cancelBooking('${booking.id}')">Cancel Booking</button>` : ''}
+                <p><strong>${b.programType}</strong></p>
+                ${b.status === 'booked' ? `<button class="btn-danger" onclick="cancelBooking('${b.id}')">Cancel</button>` : ''}
             </div>
         `;
     }).join('');
 }
 
 function cancelBooking(bookingId) {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    
+    if (!confirm('Cancel this booking?')) return;
     const bookings = DB.get('dps_bookings');
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
@@ -351,46 +316,38 @@ function cancelBooking(bookingId) {
 function copyBookings() {
     const bookings = DB.get('dps_bookings');
     const userBookings = bookings.filter(b => b.userId === currentUser.id);
-    
     let text = `My Bookings\n\n`;
-    userBookings.forEach(booking => {
-        text += `${booking.date} - ${booking.programType} - ${booking.status}\n`;
+    userBookings.forEach(b => {
+        text += `${b.date} ${b.time || ''} - ${b.programType} - ${b.status}\n`;
     });
-    
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Bookings copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Bookings copied!'));
 }
 
-// Load matches
+// Matches
 function loadMatches() {
     const matches = DB.get('dps_matches');
     const selectedMonth = document.getElementById('matchesMonthFilter').value;
-    
     const filtered = matches
         .filter(m => !selectedMonth || m.month === selectedMonth)
         .sort((a, b) => b.date.localeCompare(a.date));
-    
     const list = document.getElementById('matchesList');
-    
     if (filtered.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0; text-align: center; padding: 20px;">No matches found</p>';
+        list.innerHTML = '<p style="color:#A0A0A0; text-align:center; padding:20px;">No matches found</p>';
         return;
     }
-    
-    list.innerHTML = filtered.map(match => {
-        const hasScore = match.score && match.score !== 'Upcoming';
+    list.innerHTML = filtered.map(m => {
+        const hasScore = m.score && m.score !== 'Upcoming';
         return `
             <div class="match-card">
                 <div class="match-header">
                     <span class="badge ${hasScore ? 'badge-attended' : 'badge-booked'}">
                         ${hasScore ? 'Completed' : 'Upcoming'}
                     </span>
-                    <small>${match.date}</small>
+                    <small>${m.date}</small>
                 </div>
-                <p><strong>${match.category}</strong></p>
-                <p>${match.players}</p>
-                ${hasScore ? `<p>Score: ${match.score}</p>` : ''}
+                <p><strong>${m.category}</strong></p>
+                <p>${m.players}</p>
+                ${hasScore ? `<p>Score: ${m.score}</p>` : ''}
             </div>
         `;
     }).join('');
@@ -399,40 +356,43 @@ function loadMatches() {
 function copyMatches() {
     const matches = DB.get('dps_matches');
     const selectedMonth = document.getElementById('matchesMonthFilter').value;
-    
     let text = `Matches - ${selectedMonth}\n\n`;
-    matches.filter(m => m.month === selectedMonth).forEach(match => {
-        text += `${match.date} - ${match.category}\n${match.players}\n`;
-        if (match.score && match.score !== 'Upcoming') {
-            text += `Score: ${match.score}\n`;
-        }
+    matches.filter(m => m.month === selectedMonth).forEach(m => {
+        text += `${m.date} - ${m.category}\n${m.players}\n`;
+        if (m.score && m.score !== 'Upcoming') text += `Score: ${m.score}\n`;
         text += '---\n';
     });
-    
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Matches copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Matches copied!'));
 }
 
-// Load messages
+// One-on-One Messaging
+function getConversationId() {
+    if (currentUser.role === 'admin') {
+        // Admin's conversation with client1 (we assume only one client for now)
+        return `${COACH_ID}_client1`;
+    } else {
+        return `${currentUser.id}_${COACH_ID}`;
+    }
+}
+
 function loadMessages() {
-    const messages = DB.get('dps_messages');
-    const chatMessages = document.getElementById('chatMessages');
+    const allMessages = DB.get('dps_messages');
+    const convoId = getConversationId();
+    const convoMessages = allMessages.filter(m => m.conversationId === convoId);
     
-    if (messages.length === 0) {
-        chatMessages.innerHTML = '<p style="text-align: center; color: #A0A0A0; padding: 20px;">No messages yet. Start the conversation!</p>';
+    const chatMessages = document.getElementById('chatMessages');
+    if (convoMessages.length === 0) {
+        chatMessages.innerHTML = '<p style="text-align:center; color:#A0A0A0; padding:20px;">No messages yet. Start the conversation!</p>';
         return;
     }
     
-    chatMessages.innerHTML = messages.map(message => {
-        const isSent = message.userId === currentUser.id;
+    chatMessages.innerHTML = convoMessages.map(msg => {
+        const isSent = msg.senderId === currentUser.id;
         return `
             <div class="message ${isSent ? 'sent' : 'received'}">
-                <div class="message-sender">${message.senderName}</div>
-                <div>${message.text}</div>
-                <div class="message-time">${new Date(message.createdAt).toLocaleTimeString()}</div>
-                ${currentUser.role === 'admin' ? 
-                    `<button class="btn-danger" onclick="deleteMessage('${message.id}')" style="margin-top: 5px; font-size: 0.7rem; padding: 4px 8px;">Delete</button>` : ''}
+                <div class="message-sender">${msg.senderName}</div>
+                <div>${msg.text}</div>
+                <div class="message-time">${new Date(msg.createdAt).toLocaleTimeString()}</div>
             </div>
         `;
     }).join('');
@@ -443,38 +403,31 @@ function loadMessages() {
 function sendMessage() {
     const input = document.getElementById('messageInput');
     const text = input.value.trim();
-    
     if (!text) return;
     
-    const messages = DB.get('dps_messages');
-    messages.push({
+    const allMessages = DB.get('dps_messages');
+    const convoId = getConversationId();
+    allMessages.push({
         id: 'msg_' + Date.now(),
-        userId: currentUser.id,
+        conversationId: convoId,
+        senderId: currentUser.id,
         senderName: currentUser.name,
         text: text,
         createdAt: new Date().toISOString()
     });
-    
-    DB.set('dps_messages', messages);
+    DB.set('dps_messages', allMessages);
     input.value = '';
     loadMessages();
 }
 
-function deleteMessage(messageId) {
-    if (!confirm('Delete this message?')) return;
-    
-    const messages = DB.get('dps_messages');
-    DB.set('dps_messages', messages.filter(m => m.id !== messageId));
-    loadMessages();
-}
-
-// Booking function
+// Booking
 function confirmBooking() {
     const date = document.getElementById('bookingDate').value;
+    const time = document.getElementById('bookingTime').value;
     const programType = document.getElementById('programType').value;
     
-    if (!date || !programType) {
-        alert('Please select date and program type');
+    if (!date || !time || !programType) {
+        alert('Please select date, time, and program type');
         return;
     }
     
@@ -489,15 +442,16 @@ function confirmBooking() {
         clientName: currentUser.name,
         programType: programType,
         date: date,
+        time: time,
         groupSession: programType === 'Group Lesson' || programType === 'Kids Training',
         status: 'booked',
         createdAt: new Date().toISOString()
     });
-    
     DB.set('dps_bookings', bookings);
     
     alert('Booking confirmed!');
     document.getElementById('bookingDate').value = '';
+    document.getElementById('bookingTime').value = '';
     document.getElementById('programType').value = '';
     loadBookings();
     loadUpcomingSessions();
@@ -505,13 +459,8 @@ function confirmBooking() {
 
 // Admin Functions
 function switchAdminTab(tabName, element) {
-    document.querySelectorAll('.admin-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    document.querySelectorAll('.admin-tab-content').forEach(content => {
-        content.classList.remove('active');
-    });
+    document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-content').forEach(content => content.classList.remove('active'));
     
     const tabMap = {
         'bookings': 'adminBookings',
@@ -521,7 +470,6 @@ function switchAdminTab(tabName, element) {
         'reviews': 'adminReviews',
         'dailyMatches': 'adminDailyMatches'
     };
-    
     document.getElementById(tabMap[tabName]).classList.add('active');
     element.classList.add('active');
 }
@@ -538,41 +486,34 @@ function loadAdminData() {
 function loadAdminBookings() {
     const bookings = DB.get('dps_bookings');
     const selectedMonth = document.getElementById('adminBookingsMonth').value;
-    
     const filtered = bookings.filter(b => !selectedMonth || b.date.startsWith(selectedMonth));
-    
     const list = document.getElementById('adminBookingsList');
-    
     if (filtered.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No bookings found</p>';
+        list.innerHTML = '<p style="color:#A0A0A0;">No bookings found</p>';
         return;
     }
-    
-    list.innerHTML = filtered.map(booking => {
+    list.innerHTML = filtered.map(b => {
         const statusClass = {
             'booked': 'badge-booked',
             'attended': 'badge-attended',
             'cancelled': 'badge-cancelled'
-        }[booking.status] || 'badge-booked';
-        
+        }[b.status] || 'badge-booked';
         return `
             <div class="booking-card">
                 <div class="booking-header">
-                    <span class="badge ${statusClass}">${booking.status}</span>
-                    <small>${booking.date}</small>
+                    <span class="badge ${statusClass}">${b.status}</span>
+                    <small>${b.date} ${b.time || ''}</small>
                 </div>
-                <p><strong>${booking.clientName}</strong></p>
-                <p>${booking.programType}</p>
-                ${booking.status === 'booked' ? 
-                    `<button class="btn-primary" onclick="markAttended('${booking.id}')">Mark Attended</button>` : ''}
+                <p><strong>${b.clientName}</strong></p>
+                <p>${b.programType}</p>
+                ${b.status === 'booked' ? `<button class="btn-primary" onclick="markAttended('${b.id}')">Mark Attended</button>` : ''}
             </div>
         `;
     }).join('');
 }
 
 function markAttended(bookingId) {
-    if (!confirm('Mark this booking as attended?')) return;
-    
+    if (!confirm('Mark as attended?')) return;
     const bookings = DB.get('dps_bookings');
     const booking = bookings.find(b => b.id === bookingId);
     if (booking) {
@@ -585,56 +526,41 @@ function markAttended(bookingId) {
 
 function copyAdminBookings() {
     const bookings = DB.get('dps_bookings');
-    
     let text = `All Bookings\n\n`;
-    bookings.forEach(booking => {
-        text += `${booking.date} - ${booking.clientName} - ${booking.programType} - ${booking.status}\n`;
+    bookings.forEach(b => {
+        text += `${b.date} ${b.time || ''} - ${b.clientName} - ${b.programType} - ${b.status}\n`;
     });
-    
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Bookings copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Copied!'));
 }
 
 function loadAdminAttendance() {
-    const users = [
-        { id: 'client1', name: 'Mohammed' }
-    ];
+    const users = [{ id: 'client1', name: 'Mohammed' }];
     const attendance = DB.get('dps_attendance');
     const selectedMonth = document.getElementById('adminAttendanceMonth').value;
-    
     const list = document.getElementById('adminAttendanceList');
-    
     list.innerHTML = users.map(user => {
         const key = `${user.id}_${selectedMonth}`;
         const monthData = attendance[key];
-        
         if (monthData) {
             const sessions = monthData.sessions;
             const present = sessions.filter(s => s === true).length;
             const absent = sessions.filter(s => s === false).length;
-            
             return `
                 <div class="card">
                     <h4>${user.name}</h4>
                     <p>Present: ${present} | Absent: ${absent}</p>
-                    <div class="attendance-grid" style="margin-top: 10px;">
+                    <div class="attendance-grid" style="margin-top:10px;">
                         ${sessions.map((status, index) => {
                             let className = 'absent';
                             let label = 'Absent';
-                            if (status === true) {
-                                className = 'present';
-                                label = 'Present';
-                            } else if (status === null) {
-                                className = 'upcoming';
-                                label = 'Not set';
-                            }
+                            if (status === true) { className = 'present'; label = 'Present'; }
+                            else if (status === null) { className = 'upcoming'; label = 'Not set'; }
                             return `
                                 <div class="attendance-circle ${className}" 
-                                     style="cursor: pointer;"
+                                     style="cursor:pointer;"
                                      onclick="toggleAttendance('${user.id}', ${index}, '${status}')"
-                                     title="Day ${index + 1} - ${label} (Click to toggle)">
-                                    ${index + 1}
+                                     title="Day ${index+1} - ${label} (Click to toggle)">
+                                    ${index+1}
                                 </div>
                             `;
                         }).join('')}
@@ -642,12 +568,7 @@ function loadAdminAttendance() {
                 </div>
             `;
         } else {
-            return `
-                <div class="card">
-                    <h4>${user.name}</h4>
-                    <p>No attendance record</p>
-                </div>
-            `;
+            return `<div class="card"><h4>${user.name}</h4><p>No attendance record</p></div>`;
         }
     }).join('');
 }
@@ -656,16 +577,10 @@ function toggleAttendance(userId, dayIndex, currentStatus) {
     const attendance = DB.get('dps_attendance');
     const selectedMonth = document.getElementById('adminAttendanceMonth').value;
     const key = `${userId}_${selectedMonth}`;
-    
     if (attendance[key]) {
-        // Toggle between present (true), absent (false), and null
-        if (currentStatus === 'true') {
-            attendance[key].sessions[dayIndex] = false;
-        } else if (currentStatus === 'false') {
-            attendance[key].sessions[dayIndex] = null;
-        } else {
-            attendance[key].sessions[dayIndex] = true;
-        }
+        if (currentStatus === 'true') attendance[key].sessions[dayIndex] = false;
+        else if (currentStatus === 'false') attendance[key].sessions[dayIndex] = null;
+        else attendance[key].sessions[dayIndex] = true;
         DB.set('dps_attendance', attendance);
         loadAdminAttendance();
     }
@@ -674,43 +589,34 @@ function toggleAttendance(userId, dayIndex, currentStatus) {
 function copyAdminAttendance() {
     const attendance = DB.get('dps_attendance');
     const selectedMonth = document.getElementById('adminAttendanceMonth').value;
-    
-    let text = `Attendance Report - ${selectedMonth}\n\n`;
-    
     const users = [{ id: 'client1', name: 'Mohammed' }];
+    let text = `Attendance Report - ${selectedMonth}\n\n`;
     users.forEach(user => {
         const key = `${user.id}_${selectedMonth}`;
         const monthData = attendance[key];
-        
         if (monthData) {
-            const sessions = monthData.sessions;
-            const present = sessions.filter(s => s === true).length;
-            const absent = sessions.filter(s => s === false).length;
+            const present = monthData.sessions.filter(s => s === true).length;
+            const absent = monthData.sessions.filter(s => s === false).length;
             text += `${user.name}: Present ${present}, Absent ${absent}\n`;
         }
     });
-    
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Attendance copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Copied!'));
 }
 
 function loadAdminAnnouncements() {
     const announcements = DB.get('dps_announcements');
     const list = document.getElementById('adminAnnouncementsList');
-    
     if (announcements.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No announcements</p>';
+        list.innerHTML = '<p style="color:#A0A0A0;">No announcements</p>';
         return;
     }
-    
-    list.innerHTML = announcements.map(announcement => `
+    list.innerHTML = announcements.map(a => `
         <div class="announcement-card">
-            <h4>${announcement.title}</h4>
-            <p>${announcement.body}</p>
-            <small style="color: #A0A0A0;">${new Date(announcement.createdAt).toLocaleDateString()}</small>
+            <h4>${a.title}</h4>
+            <p>${a.body}</p>
+            <small style="color:#A0A0A0;">${new Date(a.createdAt).toLocaleDateString()}</small>
             <br>
-            <button class="btn-danger" onclick="deleteAnnouncement('${announcement.id}')" style="margin-top: 10px;">Delete</button>
+            <button class="btn-danger" onclick="deleteAnnouncement('${a.id}')" style="margin-top:10px;">Delete</button>
         </div>
     `).join('');
 }
@@ -718,22 +624,18 @@ function loadAdminAnnouncements() {
 function createAnnouncement() {
     const title = document.getElementById('announcementTitle').value.trim();
     const body = document.getElementById('announcementBody').value.trim();
-    
     if (!title || !body) {
         alert('Please enter title and body');
         return;
     }
-    
     const announcements = DB.get('dps_announcements');
     announcements.push({
         id: 'announcement_' + Date.now(),
-        title: title,
-        body: body,
+        title,
+        body,
         createdAt: new Date().toISOString()
     });
-    
     DB.set('dps_announcements', announcements);
-    
     document.getElementById('announcementTitle').value = '';
     document.getElementById('announcementBody').value = '';
     loadAdminAnnouncements();
@@ -744,13 +646,11 @@ function createAnnouncement() {
 
 function deleteAnnouncement(id) {
     if (!confirm('Delete this announcement?')) return;
-    
     const announcements = DB.get('dps_announcements');
     DB.set('dps_announcements', announcements.filter(a => a.id !== id));
     loadAdminAnnouncements();
     loadAnnouncements();
     loadDashboardAnnouncements();
-    alert('Announcement deleted');
 }
 
 function loadUsers() {
@@ -758,33 +658,21 @@ function loadUsers() {
         { name: 'Abraham', email: 'abrahamsosu16@gmail.com', role: 'Admin', gender: 'Male', weeklySessions: 0, points: 0 },
         { name: 'Mohammed', email: 'mohammed@test.com', role: 'Client', gender: 'Male', weeklySessions: 3, points: 0 }
     ];
-    
     const list = document.getElementById('usersList');
     list.innerHTML = `
         <div class="table-container">
             <table>
-                <thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Gender</th><th>Weekly Sessions</th><th>Points</th></tr></thead>
+                <tbody>${users.map(u => `
                     <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Gender</th>
-                        <th>Weekly Sessions</th>
-                        <th>Points</th>
+                        <td><strong>${u.name}</strong></td>
+                        <td>${u.email}</td>
+                        <td><span class="badge ${u.role==='Admin'?'badge-attended':'badge-booked'}">${u.role}</span></td>
+                        <td>${u.gender}</td>
+                        <td>${u.weeklySessions}</td>
+                        <td>${u.points}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    ${users.map(user => `
-                        <tr>
-                            <td><strong>${user.name}</strong></td>
-                            <td>${user.email}</td>
-                            <td><span class="badge ${user.role === 'Admin' ? 'badge-attended' : 'badge-booked'}">${user.role}</span></td>
-                            <td>${user.gender}</td>
-                            <td>${user.weeklySessions}</td>
-                            <td>${user.points}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
+                `).join('')}</tbody>
             </table>
         </div>
     `;
@@ -793,18 +681,16 @@ function loadUsers() {
 function loadReviews() {
     const reviews = DB.get('dps_reviews');
     const list = document.getElementById('reviewsList');
-    
     if (reviews.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No reviews yet</p>';
+        list.innerHTML = '<p style="color:#A0A0A0;">No reviews yet</p>';
         return;
     }
-    
-    list.innerHTML = reviews.map(review => `
+    list.innerHTML = reviews.map(r => `
         <div class="card">
-            <h4>${review.userName}</h4>
-            <p>Rating: ${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}</p>
-            <p>${review.comment}</p>
-            <small style="color: #A0A0A0;">${new Date(review.createdAt).toLocaleDateString()}</small>
+            <h4>${r.userName}</h4>
+            <p>Rating: ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</p>
+            <p>${r.comment}</p>
+            <small style="color:#A0A0A0;">${new Date(r.createdAt).toLocaleDateString()}</small>
         </div>
     `).join('');
 }
@@ -812,22 +698,18 @@ function loadReviews() {
 function loadDailyMatches() {
     const matches = DB.get('dps_matches');
     const selectedMonth = document.getElementById('dailyMatchesMonth').value;
-    
     const filtered = matches.filter(m => !selectedMonth || m.month === selectedMonth);
-    
     const list = document.getElementById('dailyMatchesList');
-    
     if (filtered.length === 0) {
-        list.innerHTML = '<p style="color: #A0A0A0;">No matches</p>';
+        list.innerHTML = '<p style="color:#A0A0A0;">No matches</p>';
         return;
     }
-    
-    list.innerHTML = filtered.map(match => `
+    list.innerHTML = filtered.map(m => `
         <div class="match-card">
-            <p><strong>${match.date}</strong> - ${match.category}</p>
-            <p>${match.players}</p>
-            ${match.score ? `<p>Score: ${match.score}</p>` : ''}
-            <button class="btn-danger" onclick="deleteMatch('${match.id}')" style="margin-top: 10px;">Delete</button>
+            <p><strong>${m.date}</strong> - ${m.category}</p>
+            <p>${m.players}</p>
+            ${m.score ? `<p>Score: ${m.score}</p>` : ''}
+            <button class="btn-danger" onclick="deleteMatch('${m.id}')" style="margin-top:10px;">Delete</button>
         </div>
     `).join('');
 }
@@ -837,25 +719,21 @@ function addMatch() {
     const category = document.getElementById('matchCategory').value;
     const players = document.getElementById('matchPlayers').value.trim();
     const score = document.getElementById('matchScore').value.trim();
-    
     if (!date || !players) {
         alert('Please fill in date and players');
         return;
     }
-    
     const matches = DB.get('dps_matches');
     matches.push({
         id: 'match_' + Date.now(),
-        date: date,
-        month: date.slice(0, 7),
-        category: category,
-        players: players,
+        date,
+        month: date.slice(0,7),
+        category,
+        players,
         score: score || 'Upcoming',
         createdAt: new Date().toISOString()
     });
-    
     DB.set('dps_matches', matches);
-    
     document.getElementById('matchDate').value = '';
     document.getElementById('matchPlayers').value = '';
     document.getElementById('matchScore').value = '';
@@ -866,7 +744,6 @@ function addMatch() {
 
 function deleteMatch(id) {
     if (!confirm('Delete this match?')) return;
-    
     const matches = DB.get('dps_matches');
     DB.set('dps_matches', matches.filter(m => m.id !== id));
     loadDailyMatches();
@@ -876,22 +753,16 @@ function deleteMatch(id) {
 function copyDailyMatches() {
     const matches = DB.get('dps_matches');
     const selectedMonth = document.getElementById('dailyMatchesMonth').value;
-    
     let text = `Daily Matches - ${selectedMonth}\n\n`;
-    matches.filter(m => m.month === selectedMonth).forEach(match => {
-        text += `${match.date} - ${match.category}\n${match.players}\n`;
-        if (match.score && match.score !== 'Upcoming') {
-            text += `Score: ${match.score}\n`;
-        }
+    matches.filter(m => m.month === selectedMonth).forEach(m => {
+        text += `${m.date} - ${m.category}\n${m.players}\n`;
+        if (m.score && m.score !== 'Upcoming') text += `Score: ${m.score}\n`;
         text += '---\n';
     });
-    
-    navigator.clipboard.writeText(text).then(() => {
-        alert('Matches copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => alert('Copied!'));
 }
 
-// Check if user is already logged in on page load
+// On page load
 document.addEventListener('DOMContentLoaded', function() {
     const savedUser = localStorage.getItem('dps_current_user');
     if (savedUser) {
