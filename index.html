@@ -78,6 +78,11 @@
                     <span class="nav-icon">💬</span>
                     <span class="nav-text">Messages</span>
                 </button>
+                <!-- Admin panel button is hidden for clients and shown for admin via JS -->
+                <button class="nav-item admin-only" data-view="adminPanel" onclick="openAdminPanel()" style="display: none;">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Admin Panel</span>
+                </button>
             </div>
             <button class="logout-btn" onclick="logout()">
                 <span>🚪</span> Logout
@@ -166,7 +171,20 @@
                         <label for="bookingDate">📅 Select Date</label>
                         <input type="date" id="bookingDate">
                     </div>
-                    
+                    <div class="form-group">
+                        <label for="bookingTime">🕒 Select Time</label>
+                        <select id="bookingTime">
+                            <option value="">Select Time</option>
+                            <option value="09:00">09:00 AM</option>
+                            <option value="10:00">10:00 AM</option>
+                            <option value="11:00">11:00 AM</option>
+                            <option value="12:00">12:00 PM</option>
+                            <option value="14:00">02:00 PM</option>
+                            <option value="15:00">03:00 PM</option>
+                            <option value="16:00">04:00 PM</option>
+                            <option value="17:00">05:00 PM</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="programType">🎾 Program Type</label>
                         <select id="programType">
@@ -179,6 +197,49 @@
                     </div>
                     
                     <button class="btn-primary btn-block" onclick="confirmBooking()">Confirm Booking</button>
+                </div>
+                
+                <!-- Coach Availability Schedule -->
+                <div class="card availability-card">
+                    <div class="card-header">
+                        <h3>🕒 Coach Availability</h3>
+                        <span class="card-badge">Weekly Schedule</span>
+                    </div>
+                    <div class="availability-grid">
+                        <div class="availability-day">
+                            <h4>Monday</h4>
+                            <span>09:00 - 12:00</span>
+                            <span>14:00 - 17:00</span>
+                        </div>
+                        <div class="availability-day">
+                            <h4>Tuesday</h4>
+                            <span>09:00 - 12:00</span>
+                            <span>14:00 - 17:00</span>
+                        </div>
+                        <div class="availability-day">
+                            <h4>Wednesday</h4>
+                            <span>09:00 - 12:00</span>
+                            <span>14:00 - 17:00</span>
+                        </div>
+                        <div class="availability-day">
+                            <h4>Thursday</h4>
+                            <span>09:00 - 12:00</span>
+                            <span>14:00 - 17:00</span>
+                        </div>
+                        <div class="availability-day">
+                            <h4>Friday</h4>
+                            <span>09:00 - 12:00</span>
+                            <span>14:00 - 17:00</span>
+                        </div>
+                        <div class="availability-day closed">
+                            <h4>Saturday</h4>
+                            <span>Closed</span>
+                        </div>
+                        <div class="availability-day closed">
+                            <h4>Sunday</h4>
+                            <span>Closed</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="pricing-card">
@@ -253,16 +314,16 @@
                 <div id="matchesList" class="matches-list"></div>
             </div>
 
-            <!-- Messages View -->
+            <!-- Messages View (Client-Coach Chat) -->
             <div id="messages" class="view">
                 <div class="page-header">
                     <h1>Messages</h1>
-                    <p class="page-subtitle">Chat with your coach</p>
+                    <p class="page-subtitle">Direct message with your coach</p>
                 </div>
                 <div class="chat-container">
                     <div id="chatMessages" class="chat-messages"></div>
                     <div class="chat-input">
-                        <input type="text" id="messageInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMessage()">
+                        <input type="text" id="messageInput" placeholder="Type a message to your coach..." onkeypress="if(event.key==='Enter') sendMessage()">
                         <button class="btn-primary" onclick="sendMessage()">Send</button>
                     </div>
                 </div>
