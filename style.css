@@ -818,6 +818,37 @@ body {
     margin-bottom: 20px;
 }
 
+/* Availability Schedule */
+.availability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.availability-day {
+    background: var(--gray-100);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+
+.availability-day.closed {
+    opacity: 0.5;
+}
+
+.availability-day h4 {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.availability-day span {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--gray-500);
+    margin: 2px 0;
+}
+
 /* Pricing */
 .pricing-card,
 .rules-card {
@@ -1083,4 +1114,8 @@ tr:hover {
         width: 95%;
         padding: 16px;
     }
+
+    .availability-grid {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     }
+}
